@@ -3,6 +3,7 @@ import pandas as pd
 
 from gspread_pandas import Spread
 from gspread_formatting import *
+from gspread.utils import rowcol_to_a1
 
 from mappings import ORG_FIELD_MAPPING, POLICY_FIELD_MAPPING
 from utils import build_columns, build_rows, build_concept
@@ -11,8 +12,9 @@ from utils import build_columns, build_rows, build_concept
 class Exporter(object):
     DROPDOWNS = {}
 
-    def __init__(self):
+    def __init__(self, name):
         self.__define_dropdowns()
+        self.spread = Spread(name)
 
     def __define_dropdowns(self):
         self.DROPDOWNS["orgs_concept_dropdown_rule"] = DataValidationRule(
@@ -79,16 +81,31 @@ class Exporter(object):
             sheet, "M2:M", rule=self.DROPDOWNS["sectors_concept_dropdown_rule"]
         )
 
-    def sheets_policies(self):
+    def _apply_rules(self, rules, sheet):
+        for idx, rule in enumerate(rules, start=1):
+            if rule:
+                start = rowcol_to_a1(col=idx, row=2)
+                end = start.split("2")[0]
+                cell_range = "{}:{}".format(start, end)
+
+                set_data_validation_for_cell_range(
+                    sheet, cell_range, rule=self.DROPDOWNS[rule]
+                )
+
+        # cell_wrap = CellFormat(wrapStrategy="WRAP")
+        # end_column = rowcol_to_a1(col=len(rules), row=1).split("1")[0]
+        # format_cell_ranges(sheet, [("A:{}".format(end_column), cell_wrap)])
+
+    def sheets_policies(self, sheetname="Policies"):
         # r = requests.get(
         #     'https://oerworldmap.org/resource/?size=-1&ext=json&filter.about.%40type=Policy&filter.feature.properties.location.address.addressCountry=%5B"FR"%5D',
         # )
-        # with open("policy.json", "wb") as f:
+        # with open("cache/policy.json", "wb") as f:
         #     f.write(r.content)
 
-        raw_data = json.load(open("policy.json", "rb"))
+        raw_data = json.load(open("cache/policy.json", "rb"))
 
-        columns = build_columns(mapping=POLICY_FIELD_MAPPING)
+        columns, rules = build_columns(mapping=POLICY_FIELD_MAPPING)
         rows = build_rows(
             columns=columns, mapping=POLICY_FIELD_MAPPING, raw_data=raw_data
         )
@@ -96,51 +113,18 @@ class Exporter(object):
         df = pd.DataFrame(columns=columns)
         df = df.append(rows, ignore_index=True)
 
-        # df.to_excel("policy-debug.xlsx")
-        # return
-
-        spread = Spread("OER World Map - France")
-        spread.clear_sheet(sheet="Policies")
-        spread.df_to_sheet(
+        self.spread.clear_sheet(sheet=sheetname)
+        self.spread.df_to_sheet(
             df,
             index=False,
-            sheet="Policies",
+            sheet=sheetname,
             replace=True,
         )
 
-        sheet = spread.spread.worksheet("Policies")
-
-        set_data_validation_for_cell_range(
-            sheet, "F2:F", rule=self.DROPDOWNS["policytypes_concept_dropdown_rule"]
-        )
-
-        set_data_validation_for_cell_range(
-            sheet, "G2:G", rule=self.DROPDOWNS["sectors_concept_dropdown_rule"]
-        )
-
-        set_data_validation_for_cell_range(
-            sheet, "H2:H", rule=self.DROPDOWNS["sectors_concept_organization_rule"]
-        )
-        set_data_validation_for_cell_range(
-            sheet, "I2:I", rule=self.DROPDOWNS["sectors_concept_organization_rule"]
-        )
-        set_data_validation_for_cell_range(
-            sheet, "J2:J", rule=self.DROPDOWNS["sectors_concept_organization_rule"]
-        )
-
-        set_data_validation_for_cell_range(
-            sheet, "K2:K", rule=self.DROPDOWNS["sectors_concept_organization_rule"]
-        )
-        set_data_validation_for_cell_range(
-            sheet, "K2:K", rule=self.DROPDOWNS["sectors_concept_organization_rule"]
-        )
-
-        cell_wrap = CellFormat(wrapStrategy="WRAP")
-        format_cell_ranges(sheet, [("A:N", cell_wrap)])
+        self._apply_rules(rules=rules, sheet=self.spread.spread.worksheet(sheetname))
 
 
 if __name__ == "__main__":
-    exp = Exporter()
-
+    exp = Exporter(name="OER World Map - France")
     # exp._sheets_concepts()
-    exp.sheets_policies()
+    exp.sheets_policies(sheetname="Policies")

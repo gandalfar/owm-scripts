@@ -27,12 +27,10 @@ def build_concept(name: str):
     return terms_tuples
 
 
-def build_columns(mapping: dict) -> list:
+def build_columns(mapping: dict) -> [list, list]:
     columns = []
+    rules = []
     for key, lookup in mapping.items():
-        if isinstance(lookup, str):
-            columns.append(lookup)
-
         if isinstance(lookup, dict):
             column_name = lookup.get("name")
             lookup_type = lookup.get("type")
@@ -43,22 +41,27 @@ def build_columns(mapping: dict) -> list:
                     columns.append(
                         "{} - {}".format(column_name.capitalize(), lkey.upper())
                     )
+                    rules.append(lookup.get("rule"))
 
             elif lookup_type.startswith("list_"):
                 for num in range(1, lookup["count"] + 1):
                     columns.append("{} ({})".format(column_name.capitalize(), num))
+                    rules.append(lookup.get("rule"))
 
             elif lookup_type in ["concept"]:
                 columns.append(column_name)
+                rules.append(lookup.get("rule"))
 
             elif lookup_type == "location":
                 for prop in lookup.get("properties"):
                     columns.append(prop.get("name").capitalize())
+                    rules.append(lookup.get("rule"))
 
             else:
                 columns.append(column_name.capitalize())
+                rules.append(lookup.get("rule"))
 
-    return columns
+    return columns, rules
 
 
 def build_rows(columns: list, mapping: dict, raw_data: dict) -> list:
@@ -68,9 +71,6 @@ def build_rows(columns: list, mapping: dict, raw_data: dict) -> list:
         proxy = Cut(item)
 
         for key, lookup in mapping.items():
-            if isinstance(lookup, str):
-                data[lookup] = proxy.get(key)
-
             if isinstance(lookup, dict):
                 results = proxy.get(key)
                 if not results:
