@@ -1,11 +1,12 @@
 import json
 import pandas as pd
+import requests
 
 from gspread_pandas import Spread
 from gspread_formatting import *
 from gspread.utils import rowcol_to_a1
 
-from mappings import ORG_FIELD_MAPPING, POLICY_FIELD_MAPPING
+from mappings import ORG_FIELD_MAPPING, POLICY_FIELD_MAPPING, SERVICE_FIELD_MAPPING
 from utils import build_columns, build_rows, build_concept
 
 
@@ -31,14 +32,19 @@ class Exporter(object):
             showCustomUi=True,
         )
 
-        self.DROPDOWNS["sectors_concept_organization_rule"] = DataValidationRule(
-            BooleanCondition("ONE_OF_RANGE", ["='Organizations'!B2:B"]),
+        self.DROPDOWNS["servicetypes_concept_dropdown_rule"] = DataValidationRule(
+            BooleanCondition("ONE_OF_RANGE", ["='Concept - Services'!B2:B"]),
             showCustomUi=True,
         )
 
-    def _sheets_concepts(self):
+        self.DROPDOWNS["sectors_concept_organization_rule"] = DataValidationRule(
+            BooleanCondition("ONE_OF_RANGE", ["='Organizations'!B2:C"]),
+            showCustomUi=True,
+        )
+
+    def sheets_concepts(self):
         spread = Spread("OER World Map - France")
-        for concept in ["sectors", "organizations", "policyTypes"]:
+        for concept in ["sectors", "organizations", "policyTypes", "services"]:
             df = pd.DataFrame(build_concept(concept), columns=["@id", "name"])
             spread.df_to_sheet(
                 df,
@@ -47,41 +53,7 @@ class Exporter(object):
                 replace=True,
             )
 
-    def _sheets_organizations(self):
-        # r = requests.get(
-        #     "https://oerworldmap.org/resource/?size=-1&ext=json&filter.about.@type=Organization",
-        # )
-        # with open("organization.json", "wb") as f:
-        #     f.write(r.content)
-
-        raw_data = json.load(open("organization.json", "rb"))
-
-        columns = build_columns(mapping=ORG_FIELD_MAPPING)
-        rows = build_rows(columns=columns, mapping=ORG_FIELD_MAPPING, raw_data=raw_data)
-
-        df = pd.DataFrame(columns=columns)
-        df = df.append(rows, ignore_index=True)
-
-        spread = Spread("OER World Map - France")
-        spread.clear_sheet(sheet="Organizations")
-        spread.df_to_sheet(
-            df,
-            index=False,
-            sheet="Organizations",
-            replace=True,
-        )
-
-        sheet = spread.spread.worksheet("Organizations")
-
-        set_data_validation_for_cell_range(
-            sheet, "L2:L", rule=self.DROPDOWNS["orgs_concept_dropdown_rule"]
-        )
-
-        set_data_validation_for_cell_range(
-            sheet, "M2:M", rule=self.DROPDOWNS["sectors_concept_dropdown_rule"]
-        )
-
-    def _apply_rules(self, rules, sheet):
+    def _apply_rules(self, rules, rows, sheet):
         for idx, rule in enumerate(rules, start=1):
             if rule:
                 start = rowcol_to_a1(col=idx, row=2)
@@ -92,23 +64,22 @@ class Exporter(object):
                     sheet, cell_range, rule=self.DROPDOWNS[rule]
                 )
 
-        # cell_wrap = CellFormat(wrapStrategy="WRAP")
-        # end_column = rowcol_to_a1(col=len(rules), row=1).split("1")[0]
-        # format_cell_ranges(sheet, [("A:{}".format(end_column), cell_wrap)])
+        cell_wrap = CellFormat(wrapStrategy="CLIP")
+        end_column = rowcol_to_a1(col=len(rules), row=1).split("1")[0]
+        format_cell_ranges(sheet, [("A:{}".format(end_column), cell_wrap)])
+        set_row_height(sheet, "1:{}".format(len(rows)), 22)
 
-    def sheets_policies(self, sheetname="Policies"):
-        # r = requests.get(
-        #     'https://oerworldmap.org/resource/?size=-1&ext=json&filter.about.%40type=Policy&filter.feature.properties.location.address.addressCountry=%5B"FR"%5D',
-        # )
-        # with open("cache/policy.json", "wb") as f:
-        #     f.write(r.content)
+    def sheets_export(self, mapping=None, sheetname=None, api_url=None):
+        cached_filename = "cache/{}.json".format(sheetname.lower())
 
-        raw_data = json.load(open("cache/policy.json", "rb"))
+        r = requests.get(api_url)
+        with open(cached_filename, "wb") as f:
+            f.write(r.content)
 
-        columns, rules = build_columns(mapping=POLICY_FIELD_MAPPING)
-        rows = build_rows(
-            columns=columns, mapping=POLICY_FIELD_MAPPING, raw_data=raw_data
-        )
+        raw_data = json.load(open(cached_filename, "rb"))
+
+        columns, rules = build_columns(mapping=mapping)
+        rows = build_rows(columns=columns, mapping=mapping, raw_data=raw_data)
 
         df = pd.DataFrame(columns=columns)
         df = df.append(rows, ignore_index=True)
@@ -121,10 +92,28 @@ class Exporter(object):
             replace=True,
         )
 
-        self._apply_rules(rules=rules, sheet=self.spread.spread.worksheet(sheetname))
+        # noinspection PyUnresolvedReferences
+        self._apply_rules(
+            rules=rules, rows=rows, sheet=self.spread.spread.worksheet(sheetname)
+        )
 
 
 if __name__ == "__main__":
-    exp = Exporter(name="OER World Map - France")
-    # exp._sheets_concepts()
-    exp.sheets_policies(sheetname="Policies")
+    exp = Exporter(name="OER World Map - France (drop-downs)")
+    # exp.sheets_concepts()
+    exp.sheets_export(
+        sheetname="Organizations",
+        mapping=ORG_FIELD_MAPPING,
+        api_url="https://oerworldmap.org/resource/?size=-1&ext=json&filter.about.@type=Organization",
+    )
+
+    exp.sheets_export(
+        sheetname="Policies",
+        mapping=POLICY_FIELD_MAPPING,
+        api_url="https://oerworldmap.org/resource/?size=-1&ext=json&filter.about.%40type=Policy&filter.feature.properties.location.address.addressCountry=FR",
+    )
+    exp.sheets_export(
+        sheetname="Services",
+        mapping=SERVICE_FIELD_MAPPING,
+        api_url="https://oerworldmap.org/resource/?size=-1&ext=json&filter.about.%40type=Service&filter.feature.properties.location.address.addressCountry=FR",
+    )

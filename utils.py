@@ -57,6 +57,9 @@ def build_columns(mapping: dict) -> [list, list]:
                     columns.append(prop.get("name").capitalize())
                     rules.append(lookup.get("rule"))
 
+            elif lookup_type == "freefield":
+                columns.append(lookup.get("name"))
+
             else:
                 columns.append(column_name.capitalize())
                 rules.append(lookup.get("rule"))
@@ -66,7 +69,7 @@ def build_columns(mapping: dict) -> [list, list]:
 
 def build_rows(columns: list, mapping: dict, raw_data: dict) -> list:
     rows = []
-    for item in raw_data.get("member")[:10]:
+    for item in raw_data.get("member")[:]:
         data = OrderedDict()
         proxy = Cut(item)
 
