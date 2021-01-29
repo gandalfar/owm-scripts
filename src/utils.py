@@ -67,7 +67,7 @@ def build_columns(mapping: dict) -> [list, list]:
     return columns, rules
 
 
-def build_rows(columns: list, mapping: dict, raw_data: dict) -> list:
+def build_rows(columns: list, mapping: dict, raw_data: dict, languages: list) -> list:
     rows = []
     for item in raw_data.get("member")[:]:
         data = OrderedDict()
@@ -95,7 +95,7 @@ def build_rows(columns: list, mapping: dict, raw_data: dict) -> list:
                     data[column_name] = concept
 
                 elif lookup_type.startswith("list_"):
-                    lookup_key = lookup.get("key")
+                    lookup_key = lookup.get("key", lookup.get("lang_key"))
 
                     for idx, litem in enumerate(
                         results[: lookup.get("count")], start=1
@@ -106,7 +106,24 @@ def build_rows(columns: list, mapping: dict, raw_data: dict) -> list:
                         )
 
                         if lookup_type == "list_fk":
-                            data[column_name] = litem_proxy.get(lookup_key)
+                            if lookup.get("lang_key"):
+                                value = None
+                                for lang in languages:
+                                    lang_lookup = "{}.{}".format(lookup_key, lang)
+                                    value = litem_proxy.get(lang_lookup)
+
+                                    if value:
+                                        data[column_name] = value
+                                        break
+
+                                if not value:
+                                    # Fallback to first language in the list, if none of preferred
+                                    # languages match
+                                    data[column_name] = litem_proxy.get(
+                                        "{}[0].name".format(lookup_key)
+                                    )
+                            else:
+                                data[column_name] = litem_proxy.get(lookup_key)
                         elif lookup_type == "list_concept":
                             concept = litem_proxy.get("name.en")
                             data[column_name] = concept

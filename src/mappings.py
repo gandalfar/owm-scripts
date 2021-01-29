@@ -1,4 +1,4 @@
-LANGS = ["en", "fr"]
+LANGS = ["en", "de", "fr", "es"]
 
 ORG_FIELD_MAPPING = {
     "feature.id": {"name": "ID", "type": "url_id"},
@@ -136,5 +136,51 @@ SERVICE_FIELD_MAPPING = {
     "about.endDate": {"name": "Available until", "type": "direct"},
     "about.email": {"name": "Email", "type": "direct"},
     "feature.properties.image": {"name": "Logo", "type": "direct"},
+    "comment": {"name": "Comment / Extra information", "type": "freefield"},
+}
+
+TOOLS_FIELD_MAPPING = {
+    "about.@id": {"name": "ID", "type": "url_id"},
+    "about.name": {"name": "name", "type": "list", "keys": LANGS},
+    "about.alternateName": {"name": "abbreviation", "type": "list", "keys": LANGS},
+    "about.url": {"name": "URL", "type": "direct"},
+    "about.description": {"name": "description", "type": "list", "keys": LANGS},
+    "about.rights": {
+        "name": "license",
+        "type": "direct",
+        "rule": "static_rights",
+    },
+    "about.isRelatedTo": {
+        "name": "Used by",
+        "type": "list_fk",
+        "lang_key": "name",
+        "count": 5,
+        "rule": "sectors_service_rule",
+    },
+    "about.primarySector": {
+        "name": "Primary sector",
+        "type": "concept",
+        "concept": "https://oerworldmap.org/assets/json/sectors.json",
+        "rule": "sectors_concept_dropdown_rule",
+    },
+    "about.secondarySector": {
+        "name": "secondary sector",
+        "type": "list_concept",
+        "concept": "https://oerworldmap.org/assets/json/sectors.json",
+        "count": 3,
+        "rule": "sectors_concept_dropdown_rule",
+    },
+    "about.keywords": {
+        "name": "keywords",
+        "type": "comma",
+    },
+    "about.image": {"name": "Logo", "type": "direct"},
+    "about.manufacturer": {
+        "name": "Developer",
+        "type": "list_fk",
+        "lang_key": "name",
+        "count": 2,
+        "rule": "sectors_concept_organization_rule",
+    },
     "comment": {"name": "Comment / Extra information", "type": "freefield"},
 }
